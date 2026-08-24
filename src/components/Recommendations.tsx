@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Mode, Player, Ruolo } from '../types';
-import { quoteOf, valueDelta } from '../types';
+import { quoteOf, weightedValueDelta } from '../types';
 import { useDraft } from '../state/store';
 import { budgetStatus, buildIndex, roleTargets } from '../lib/engine';
 
@@ -66,7 +66,7 @@ export default function Recommendations({
             <ul className="mt-1 space-y-1">
               {list.map(({ player, maxBid }) => {
                 const qt = quoteOf(player, mode);
-                const delta = valueDelta(player, mode);
+                const delta = weightedValueDelta(player, mode);
                 const affordable = maxBid >= qt;
                 return (
                   <li key={player.id}>
@@ -82,7 +82,7 @@ export default function Recommendations({
                       </span>
                       <span
                         className="shrink-0 text-xs tabular-nums text-zinc-500"
-                        title="FVM − quotazione"
+                        title="Δ pesato: FVM − quotazione, scontato se il giocatore non è titolare (richiede le statistiche importate)"
                       >
                         {delta > 0 ? '+' : ''}
                         {delta}

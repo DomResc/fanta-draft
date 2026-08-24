@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { Blocco, Mode, Player, Ruolo } from '../types';
-import { blocchiOf, quoteOf, ratingOf, valueDelta, weightedValueDelta } from '../types';
+import { blocchiOf, quoteOf, ratingOf, titolaritaPct, weightedValueDelta } from '../types';
 import { useDraft } from '../state/store';
 import { buildIndex, maxBidFor } from '../lib/engine';
 
-type SortKey = 'fvm' | 'qt' | 'delta' | 'deltaW' | 'mv' | 'fm' | 'nome';
+type SortKey = 'fvm' | 'qt' | 'deltaW' | 'mv' | 'fm' | 'nome';
 type StatusFilter = 'available' | 'all';
 type BloccoFilter = 'tutti' | Blocco;
-type ColId = 'giocatore' | 'rm' | 'pres' | 'mv' | 'fm' | 'qt' | 'fvm';
+type ColId = 'giocatore' | 'rm' | 'tit' | 'mv' | 'fm' | 'qt' | 'fvm';
 
 const DEFAULT_COL_W: Record<ColId, number> = {
   giocatore: 260,
   rm: 72,
-  pres: 52,
+  tit: 56,
   mv: 56,
   fm: 56,
   qt: 64,
@@ -151,8 +151,6 @@ export default function PlayerTable({
       switch (sortKey) {
         case 'qt':
           return quoteOf(b, mode) - quoteOf(a, mode);
-        case 'delta':
-          return valueDelta(b, mode) - valueDelta(a, mode);
         case 'deltaW':
           return weightedValueDelta(b, mode) - weightedValueDelta(a, mode);
         case 'mv':
@@ -205,6 +203,9 @@ export default function PlayerTable({
 
   const statsTitle = (p: Player): string => {
     const parts: string[] = [];
+    const tit = titolaritaPct(p);
+    if (tit != null) parts.push(`titolarità ${tit}%`);
+    if (p.presenze != null) parts.push(`${p.presenze} presenze`);
     if (p.mv != null) parts.push(`MV ${p.mv}`);
     if (p.fm != null) parts.push(`FM ${p.fm}`);
     if (p.ruolo === 'P') {
@@ -219,7 +220,7 @@ export default function PlayerTable({
     }
     return parts.length > 0
       ? `Scorsa stagione: ${parts.join(' · ')}`
-      : 'Importa il file statistiche dall\u2019header per presenze e media voto';
+      : 'Importa il file statistiche dall\u2019header per titolarità e media voto';
   };
 
   return (
@@ -285,7 +286,6 @@ export default function PlayerTable({
         >
           <option value="fvm">Ordina: FVM ↓</option>
           <option value="qt">Ordina: Quotazione ↓</option>
-          <option value="delta">Ordina: Δ (affari) ↓</option>
           <option value="deltaW" title="Δ pesato per la titolarità attesa: richiede le statistiche importate">
             Ordina: Δ pesato ↓
           </option>
@@ -326,30 +326,6 @@ export default function PlayerTable({
               )}
               <th
                 className="relative px-2 py-2 text-right font-medium"
-                style={{ width: colW.pres }}
-                title="Presenze scorsa stagione (richiede il file statistiche): proxy di titolarità"
-              >
-                Pres
-                {resizeHandle('pres')}
-              </th>
-              <th
-                className="relative px-2 py-2 text-right font-medium"
-                style={{ width: colW.mv }}
-                title="Media voto scorsa stagione (richiede il file statistiche)"
-              >
-                MV
-                {resizeHandle('mv')}
-              </th>
-              <th
-                className="relative px-2 py-2 text-right font-medium"
-                style={{ width: colW.fm }}
-                title="FantaMedia scorsa stagione (richiede il file statistiche)"
-              >
-                FM
-                {resizeHandle('fm')}
-              </th>
-              <th
-                className="relative px-2 py-2 text-right font-medium"
                 style={{ width: colW.qt }}
                 title="Quotazione attuale (prezzo d'asta)"
               >
@@ -364,12 +340,37 @@ export default function PlayerTable({
                 FVM
                 {resizeHandle('fvm')}
               </th>
+              <th
+                className="relative border-l-2 border-zinc-600 px-2 py-2 text-right font-medium text-zinc-400"
+                style={{ width: colW.tit }}
+                title="Scorsa stagione — % di titolarità: presenze su 38 giornate (richiede il file statistiche)"
+              >
+                Tit%
+                {resizeHandle('tit')}
+              </th>
+              <th
+                className="relative px-2 py-2 text-right font-medium text-zinc-400"
+                style={{ width: colW.mv }}
+                title="Media voto scorsa stagione (richiede il file statistiche)"
+              >
+                MV
+                {resizeHandle('mv')}
+              </th>
+              <th
+                className="relative px-3 py-2 text-right font-medium text-zinc-400"
+                style={{ width: colW.fm }}
+                title="FantaMedia scorsa stagione (richiede il file statistiche)"
+              >
+                FM
+                {resizeHandle('fm')}
+              </th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((p) => {
               const st = statusOf(p.id);
               const isFocus = focus?.id === p.id;
+              const tit = titolaritaPct(p);
               return (
                 <tr
                   key={p.id}
@@ -415,33 +416,33 @@ export default function PlayerTable({
                       {p.ruoloMantra.join('/')}
                     </td>
                   )}
-                  <td
-                    title={statsTitle(p)}
-                    className={`px-2 py-1.5 text-right text-xs tabular-nums ${
-                      p.presenze == null
-                        ? 'text-zinc-600'
-                        : p.presenze < 15
-                          ? 'font-semibold text-amber-500'
-                          : 'text-zinc-300'
-                    }`}
-                  >
-                    {p.presenze ?? '—'}
-                  </td>
-                  <td className="px-2 py-1.5 text-right text-xs tabular-nums text-zinc-300">
-                    {p.mv != null ? p.mv.toFixed(2) : '—'}
-                  </td>
-                  <td
-                    className={`px-2 py-1.5 text-right text-xs tabular-nums ${
-                      p.fm != null ? (p.fm >= 7 ? 'font-semibold text-emerald-400' : 'text-zinc-300') : 'text-zinc-600'
-                    }`}
-                  >
-                    {p.fm != null ? p.fm.toFixed(2) : '—'}
-                  </td>
                   <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
                     {quoteOf(p, mode)}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-zinc-300">
                     {ratingOf(p, mode)}
+                  </td>
+                  <td
+                    title={statsTitle(p)}
+                    className={`border-l-2 border-zinc-600 px-2 py-1.5 text-right text-xs tabular-nums ${
+                      tit == null
+                        ? 'text-zinc-600'
+                        : tit < 40
+                          ? 'font-semibold text-amber-500'
+                          : 'text-zinc-300'
+                    }`}
+                  >
+                    {tit != null ? `${tit}%` : '—'}
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-xs tabular-nums text-zinc-300">
+                    {p.mv != null ? p.mv.toFixed(2) : '—'}
+                  </td>
+                  <td
+                    className={`px-3 py-1.5 text-right text-xs tabular-nums ${
+                      p.fm != null ? (p.fm >= 7 ? 'font-semibold text-emerald-400' : 'text-zinc-300') : 'text-zinc-600'
+                    }`}
+                  >
+                    {p.fm != null ? p.fm.toFixed(2) : '—'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-1.5 text-right">
                     {st === 'available' && buyingId !== p.id && (

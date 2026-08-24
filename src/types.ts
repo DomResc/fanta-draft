@@ -106,11 +106,18 @@ export function hasStats(p: Player): boolean {
   return typeof p.presenze === 'number' || typeof p.mv === 'number';
 }
 
-/** Affidabilità 0..1 dalla titolarità attesa: 30+ presenze = titolare pieno.
+/** Titolarità in % sulle 38 giornate di Serie A: 38 presenze = 100%.
+ *  Null senza statistiche caricate. */
+export function titolaritaPct(p: Player): number | null {
+  if (typeof p.presenze !== 'number') return null;
+  return Math.min(100, Math.round((p.presenze / 38) * 100));
+}
+
+/** Affidabilità 0..1 dalla titolarità attesa: 38+ presenze = titolare pieno.
  *  Senza statistiche caricate vale 1 (nessuna penalizzazione). */
 export function reliabilityOf(p: Player): number {
   if (typeof p.presenze !== 'number') return 1;
-  return Math.min(1, Math.max(0, p.presenze / 30));
+  return Math.min(1, Math.max(0, p.presenze / 38));
 }
 
 /** Δ sconto pesato per la titolarità: le presenze scarse riducono il valore
