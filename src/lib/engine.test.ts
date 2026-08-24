@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DraftState, LeagueConfig, Player, Ruolo } from '../types';
-import { blocchiOf, valueDelta, valueRatio } from '../types';
+import { blocchiOf, reliabilityOf, titolaritaPct, valueDelta, valueRatio, weightedValueDelta } from '../types';
 import {
   CLASSIC_MODULES,
   MANTRA_MODULES,
@@ -31,6 +31,7 @@ function mk(opts: Partial<Player> & { ruolo: Ruolo; qtA: number }): Player {
     qtAM: opts.qtAM ?? opts.qtA,
     fvm: opts.fvm ?? 0,
     fvmM: opts.fvmM ?? 0,
+    ...(opts.presenze != null ? { presenze: opts.presenze } : {}),
   };
 }
 
@@ -480,5 +481,29 @@ describe('slotSuggestions', () => {
     const s = stateOf(CFG, [[1, 10], [2, 12]]);
     const sug = slotSuggestions(all, byId, s, 'classic', '3-4-3', 8);
     expect(sug.map((x) => x.player.id)).toEqual([20]);
+  });
+});
+
+describe('titolaritaPct / reliabilityOf / weightedValueDelta', () => {
+  it('percentuale di titolarità su 38 giornate con cap al 100', () => {
+    expect(titolaritaPct(mk({ ruolo: 'C', qtA: 10, presenze: 19 }))).toBe(50);
+    expect(titolaritaPct(mk({ ruolo: 'C', qtA: 10, presenze: 38 }))).toBe(100);
+    expect(titolaritaPct(mk({ ruolo: 'C', qtA: 10, presenze: 45 }))).toBe(100);
+    expect(titolaritaPct(mk({ ruolo: 'C', qtA: 10 }))).toBeNull();
+  });
+
+  it('affidabilità dalle sole presenze (38 = pieno)', () => {
+    expect(reliabilityOf(mk({ ruolo: 'C', qtA: 10 }))).toBe(1);
+    expect(reliabilityOf(mk({ ruolo: 'C', qtA: 10, presenze: 38 }))).toBe(1);
+    expect(reliabilityOf(mk({ ruolo: 'C', qtA: 10, presenze: 19 }))).toBe(0.5);
+  });
+
+  it('il Δ pesato sconta solo i delta positivi secondo l\u2019affidabilità', () => {
+    const affare = mk({ ruolo: 'C', qtA: 6, fvm: 16, presenze: 38 });
+    expect(weightedValueDelta(affare, 'classic')).toBe(10);
+    const nonTitolare = mk({ ruolo: 'C', qtA: 6, fvm: 16, presenze: 19 });
+    expect(weightedValueDelta(nonTitolare, 'classic')).toBe(5);
+    const sopraprezzo = mk({ ruolo: 'C', qtA: 20, fvm: 10, presenze: 19 });
+    expect(weightedValueDelta(sopraprezzo, 'classic')).toBe(-10);
   });
 });

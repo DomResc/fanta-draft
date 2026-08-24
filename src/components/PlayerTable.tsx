@@ -17,7 +17,7 @@ const DEFAULT_COL_W: Record<ColId, number> = {
   mv: 56,
   fm: 56,
   qt: 64,
-  fvm: 64,
+  fvm: 78,
 };
 
 const COLS_KEY = 'fanta-draft:cols';
@@ -335,7 +335,7 @@ export default function PlayerTable({
               <th
                 className="relative px-3 py-2 text-right font-medium"
                 style={{ width: colW.fvm }}
-                title="Fantavalue media (Classic) o Mantra: quanto il giocatore è atteso che renda"
+                title="Fantavalue media (Classic) o Mantra · sotto, in piccolo: Δ pesato per la titolarità attesa"
               >
                 FVM
                 {resizeHandle('fvm')}
@@ -371,6 +371,7 @@ export default function PlayerTable({
               const st = statusOf(p.id);
               const isFocus = focus?.id === p.id;
               const tit = titolaritaPct(p);
+              const dW = weightedValueDelta(p, mode);
               return (
                 <tr
                   key={p.id}
@@ -419,8 +420,17 @@ export default function PlayerTable({
                   <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
                     {quoteOf(p, mode)}
                   </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-zinc-300">
-                    {ratingOf(p, mode)}
+                  <td className="px-3 py-1.5 text-right">
+                    <div className="tabular-nums text-zinc-300">{ratingOf(p, mode)}</div>
+                    <div
+                      title="Δ pesato: FVM − quotazione, scontato per la titolarità attesa dalle statistiche importate"
+                      className={`text-[11px] leading-tight tabular-nums ${
+                        dW > 0 ? 'text-emerald-400' : dW < 0 ? 'text-red-400' : 'text-zinc-600'
+                      }`}
+                    >
+                      {dW > 0 ? '+' : ''}
+                      {dW}
+                    </div>
                   </td>
                   <td
                     title={statsTitle(p)}
