@@ -459,18 +459,18 @@ export default function PlayerTable({
                       <>
                         <button
                           onClick={() => openBuy(p)}
-                          className="mr-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold transition-colors hover:bg-emerald-500"
+                          className="mr-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500"
                         >
-                          Acquista
+                          ✓ Acquisto mio
                         </button>
                         <button
                           onClick={() =>
                             dispatch({ type: 'TAKE_OTHER', playerId: p.id })
                           }
-                          title="Segna come acquistato da un'altra squadra"
-                          className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-800"
+                          title="Segna come acquistato da una squadra avversaria: il giocatore esce dal listone"
+                          className="rounded-md border border-amber-800 bg-amber-950/40 px-2 py-1 text-xs text-amber-300 transition-colors hover:bg-amber-900/60"
                         >
-                          Altro
+                          ✕ Preso da altri
                         </button>
                       </>
                     )}
