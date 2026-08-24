@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Blocco, Mode, Player, Ruolo } from '../types';
-import { blocchiOf, quoteOf, ratingOf, valueDelta, valueRatio } from '../types';
+import { blocchiOf, quoteOf, ratingOf, valueDelta, valueRatio, weightedValueDelta } from '../types';
 import { useDraft } from '../state/store';
 import { buildIndex, maxBidFor } from '../lib/engine';
 
-type SortKey = 'fvm' | 'qt' | 'delta' | 'ratio' | 'nome';
+type SortKey = 'fvm' | 'qt' | 'delta' | 'deltaW' | 'ratio' | 'nome';
 type StatusFilter = 'available' | 'all';
 type BloccoFilter = 'tutti' | Blocco;
 
@@ -81,6 +81,8 @@ export default function PlayerTable({
           return quoteOf(b, mode) - quoteOf(a, mode);
         case 'delta':
           return valueDelta(b, mode) - valueDelta(a, mode);
+        case 'deltaW':
+          return weightedValueDelta(b, mode) - weightedValueDelta(a, mode);
         case 'ratio':
           return (valueRatio(b, mode) ?? -Infinity) - (valueRatio(a, mode) ?? -Infinity);
         case 'nome':
@@ -125,6 +127,18 @@ export default function PlayerTable({
     D: 'bg-sky-950 text-sky-400',
     C: 'bg-emerald-950 text-emerald-400',
     A: 'bg-violet-950 text-violet-300',
+  };
+
+  const statsTitle = (p: Player): string => {
+    const parts: string[] = [];
+    if (p.mv != null) parts.push(`MV ${p.mv}`);
+    if (p.fm != null) parts.push(`FM ${p.fm}`);
+    if (p.gol != null) parts.push(`${p.gol} gol`);
+    if (p.assist != null) parts.push(`${p.assist} assist`);
+    if (p.rigori != null) parts.push(`${p.rigori} rigori`);
+    return parts.length > 0
+      ? `Scorsa stagione: ${parts.join(' · ')}`
+      : 'Importa il file statistiche dall\u2019header per presenze e media voto';
   };
 
   return (
@@ -191,6 +205,9 @@ export default function PlayerTable({
           <option value="fvm">Ordina: FVM ↓</option>
           <option value="qt">Ordina: Quotazione ↓</option>
           <option value="delta">Ordina: Δ (affari) ↓</option>
+          <option value="deltaW" title="Δ pesato per la titolarità attesa: richiede le statistiche importate">
+            Ordina: Δ pesato ↓
+          </option>
           <option value="ratio">Ordina: V/Q ↓</option>
           <option value="nome">Ordina: Nome ↑</option>
         </select>
@@ -214,6 +231,12 @@ export default function PlayerTable({
             <tr>
               <th className="px-3 py-2 font-medium">Giocatore</th>
               {mode === 'mantra' && <th className="px-2 py-2 font-medium">RM</th>}
+              <th
+                className="px-2 py-2 text-right font-medium"
+                title="Presenze scorsa stagione (richiede il file statistiche): proxy di titolarità"
+              >
+                Pres
+              </th>
               <th className="px-2 py-2 text-right font-medium" title="Quotazione attuale (prezzo d'asta)">
                 Qt.A
               </th>
@@ -283,6 +306,18 @@ export default function PlayerTable({
                       {p.ruoloMantra.join('/')}
                     </td>
                   )}
+                  <td
+                    title={statsTitle(p)}
+                    className={`px-2 py-1.5 text-right text-xs tabular-nums ${
+                      p.presenze == null
+                        ? 'text-zinc-600'
+                        : p.presenze < 15
+                          ? 'font-semibold text-amber-500'
+                          : 'text-zinc-300'
+                    }`}
+                  >
+                    {p.presenze ?? '—'}
+                  </td>
                   <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
                     {quoteOf(p, mode)}
                   </td>
@@ -393,7 +428,7 @@ export default function PlayerTable({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={mode === 'mantra' ? 7 : 6} className="p-6 text-center text-zinc-500">
+                <td colSpan={mode === 'mantra' ? 8 : 7} className="p-6 text-center text-zinc-500">
                   Nessun giocatore trovato con questi filtri.
                 </td>
               </tr>

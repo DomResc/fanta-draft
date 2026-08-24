@@ -5,6 +5,9 @@ const KEY = 'fanta-draft:v1:data';
 export interface StoredData {
   fileName: string;
   savedAt: string;
+  /** Import statistiche opzionale (campi aggiuntivi su Player). */
+  statsFileName?: string;
+  statsSavedAt?: string;
   players: Player[];
 }
 

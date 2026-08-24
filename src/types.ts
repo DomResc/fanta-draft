@@ -22,6 +22,14 @@ export interface Player {
   qtAM: number;
   fvm: number;
   fvmM: number;
+  /** Statistiche stagioni precedenti (merge opzionale dal file "Statistiche"
+   *  di fantacalcio.it): assenti finché non si carica il file. */
+  presenze?: number;
+  mv?: number;
+  fm?: number;
+  gol?: number;
+  assist?: number;
+  rigori?: number;
 }
 
 export interface LeagueConfig {
@@ -89,4 +97,24 @@ export function valueDelta(p: Player, mode: Mode): number {
 export function valueRatio(p: Player, mode: Mode): number | null {
   const q = quoteOf(p, mode);
   return q > 0 ? ratingOf(p, mode) / q : null;
+}
+
+export function hasStats(p: Player): boolean {
+  return typeof p.presenze === 'number' || typeof p.mv === 'number';
+}
+
+/** Affidabilità 0..1 dalla titolarità attesa: 30+ presenze = titolare pieno.
+ *  Senza statistiche caricate vale 1 (nessuna penalizzazione). */
+export function reliabilityOf(p: Player): number {
+  if (typeof p.presenze !== 'number') return 1;
+  return Math.min(1, Math.max(0, p.presenze / 30));
+}
+
+/** Δ sconto pesato per la titolarità: le presenze scarse riducono il valore
+ *  degli affari positivi (un affare che non gioca non è un affare).
+ *  I Δ negativi restano invariati, e senza statistiche coincide con valueDelta. */
+export function weightedValueDelta(p: Player, mode: Mode): number {
+  const delta = valueDelta(p, mode);
+  if (delta <= 0) return delta;
+  return Math.round(delta * reliabilityOf(p) * 10) / 10;
 }

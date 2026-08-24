@@ -10,14 +10,19 @@ export default function Header({
   onModeChange,
   onReplaceData,
   dataFileName,
+  onStatsFile,
+  statsFileName,
 }: {
   mode: Mode;
   onModeChange: (m: Mode) => void;
   onReplaceData?: () => void;
   dataFileName?: string;
+  onStatsFile?: (file: File) => void;
+  statsFileName?: string;
 }) {
   const { store, dispatch } = useDraft();
   const fileRef = useRef<HTMLInputElement>(null);
+  const statsRef = useRef<HTMLInputElement>(null);
   const drafting = store.present.phase === 'draft';
 
   const exportState = () => {
@@ -79,6 +84,36 @@ export default function Header({
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {onStatsFile && (
+            <>
+              <button
+                onClick={() => statsRef.current?.click()}
+                title={
+                  statsFileName
+                    ? `Statistiche in uso: ${statsFileName}`
+                    : 'Importa le statistiche della scorsa stagione (presenze, MV, gol…)'
+                }
+                className={`rounded-lg border px-3 py-1.5 text-sm transition-colors hover:bg-zinc-800 ${
+                  statsFileName
+                    ? 'border-sky-800 text-sky-300'
+                    : 'border-zinc-700 text-zinc-300'
+                }`}
+              >
+                📊 Statistiche
+              </button>
+              <input
+                ref={statsRef}
+                type="file"
+                accept=".xlsx,.xls,.xlsm,.csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onStatsFile(f);
+                  e.target.value = '';
+                }}
+              />
+            </>
+          )}
           {onReplaceData && (
             <button
               onClick={onReplaceData}

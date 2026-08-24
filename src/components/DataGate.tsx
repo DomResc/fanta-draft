@@ -32,6 +32,18 @@ export default function DataGate({
         <p className="mt-1 text-sm text-zinc-500">
           Carica il file quotazioni Fantacalcio (.xlsx) per iniziare
         </p>
+        <p className="mt-2 text-xs text-zinc-500">
+          Lo scarichi da{' '}
+          <a
+            href="https://www.fantacalcio.it/quotazioni-fantacalcio"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-emerald-400 underline decoration-emerald-800 underline-offset-2 hover:decoration-emerald-400"
+          >
+            fantacalcio.it → Quotazioni e FVM
+          </a>{' '}
+          (icona <span className="font-mono">Scarica</span> in alto)
+        </p>
 
         {parsing ? (
           <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-zinc-400">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Mode, Player } from './types';
 import { parseQuotazioniFile } from './lib/parser';
+import { applyStats, parseStatistiche } from './lib/stats';
 import { loadData, saveData } from './lib/dataCache';
 import type { StoredData } from './lib/dataCache';
 import { DraftProvider, useDraft } from './state/store';
@@ -64,6 +65,28 @@ export default function App() {
     }
   }, []);
 
+  const handleStatsFile = useCallback(
+    async (file: File) => {
+      if (!data) return;
+      try {
+        const rows = parseStatistiche(await file.arrayBuffer());
+        const { players, matched } = applyStats(data.players, rows);
+        const stored: StoredData = {
+          ...data,
+          statsFileName: file.name,
+          statsSavedAt: new Date().toISOString(),
+          players,
+        };
+        saveData(stored);
+        setData(stored);
+        alert(`Statistiche applicate a ${matched} giocatori su ${rows.length} righe.`);
+      } catch (e) {
+        alert(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [data],
+  );
+
   const showGate = !data || replacing;
 
   return (
@@ -75,6 +98,8 @@ export default function App() {
             onModeChange={setMode}
             onReplaceData={requestReplace}
             dataFileName={data.fileName}
+            onStatsFile={handleStatsFile}
+            statsFileName={data.statsFileName}
           />
           <Main players={data.players} mode={mode} />
         </DraftProvider>
