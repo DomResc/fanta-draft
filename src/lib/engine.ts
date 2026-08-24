@@ -463,6 +463,152 @@ export function bestLineup(
   };
 }
 
+export interface SlotView {
+  /** Etichetta del ruolo richiesto (es. "P", "D", "E/W", "T/A"). */
+  label: string;
+  ruolo: Ruolo;
+  /** Chiavi raw dello slot per fitsSlot (Classic: [ruolo]). */
+  slotKeys: string[];
+  player: Player | null;
+}
+
+/**
+ * Scompone il modulo in slot e li riempie con i migliori giocatori in rosa,
+ * ammettendo slot vuoti (rosa incompleta). In Mantra l'assegnamento è
+ * ottimale anche parziale (B&B che può saltare gli slot).
+ */
+export function lineupSlots(
+  roster: Player[],
+  mode: Mode,
+  moduleName: string,
+): SlotView[] | null {
+  if (mode === 'classic') {
+    const m = CLASSIC_MODULES.find((x) => x.name === moduleName);
+    if (!m) return null;
+    const pools = new Map<Ruolo, Player[]>();
+    for (const r of RUOLI) {
+      pools.set(
+        r,
+        roster
+          .filter((p) => p.ruolo === r)
+          .sort((a, b) => ratingOf(b, mode) - ratingOf(a, mode)),
+      );
+    }
+    const slots: SlotView[] = [
+      { label: 'P', ruolo: 'P', slotKeys: ['P'], player: pools.get('P')![0] ?? null },
+    ];
+    for (const [role, n] of [
+      ['D', m.d],
+      ['C', m.c],
+      ['A', m.a],
+    ] as const) {
+      const top = pools.get(role)!.slice(0, n);
+      for (let i = 0; i < n; i++) {
+        slots.push({ label: role, ruolo: role, slotKeys: [role], player: top[i] ?? null });
+      }
+    }
+    return slots;
+  }
+
+  const m = MANTRA_MODULES.find((x) => x.name === moduleName);
+  if (!m) return null;
+  const portieri = roster
+    .filter((p) => p.ruolo === 'P')
+    .sort((a, b) => ratingOf(b, 'mantra') - ratingOf(a, 'mantra'));
+  const outfield = roster.filter((p) => p.ruolo !== 'P');
+  const slots: SlotView[] = [
+    { label: 'Por', ruolo: 'P', slotKeys: ['Por'], player: portieri[0] ?? null },
+  ];
+
+  const bySlot: Player[][] = m.slots.map((slot) =>
+    outfield
+      .filter((p) => fitsSlot(p, slot))
+      .sort((a, b) => ratingOf(b, 'mantra') - ratingOf(a, 'mantra')),
+  );
+  const suffixBound = new Array<number>(m.slots.length + 1).fill(0);
+  for (let i = m.slots.length - 1; i >= 0; i--) {
+    suffixBound[i] =
+      suffixBound[i + 1] + (bySlot[i].length > 0 ? ratingOf(bySlot[i][0], 'mantra') : 0);
+  }
+
+  const used = new Set<number>();
+  const picks: Array<Player | null> = [];
+  let best: { picks: Array<Player | null>; score: number } | null = null;
+
+  function bt(i: number, score: number): void {
+    if (best && score + suffixBound[i] <= best.score) return;
+    if (i === m!.slots.length) {
+      best = { picks: [...picks], score };
+      return;
+    }
+    // prima i giocatori (alza subito il bound), poi l'opzione slot vuoto
+    for (const p of bySlot[i]) {
+      if (used.has(p.id)) continue;
+      used.add(p.id);
+      picks.push(p);
+      bt(i + 1, score + ratingOf(p, 'mantra'));
+      picks.pop();
+      used.delete(p.id);
+    }
+    picks.push(null);
+    bt(i + 1, score);
+    picks.pop();
+  }
+
+  bt(0, 0);
+  const res = best ?? { picks: m.slots.map(() => null), score: 0 };
+  m.slots.forEach((slot, i) => {
+    slots.push({
+      label: slot.join('/'),
+      ruolo: slotCategoria(slot),
+      slotKeys: slot,
+      player: res.picks[i],
+    });
+  });
+  return slots;
+}
+
+export interface SlotSuggestion {
+  player: Player;
+  maxBid: number;
+}
+
+/** Migliori acquisti ancora disponibili per uno slot scoperto del modulo. */
+export function slotSuggestions(
+  allPlayers: Player[],
+  byId: Map<number, Player>,
+  state: DraftState,
+  mode: Mode,
+  moduleName: string,
+  slotIndex: number,
+  limit = 3,
+): SlotSuggestion[] {
+  const roster = ownedPlayers(byId, state);
+  const slots = lineupSlots(roster, mode, moduleName);
+  const slot = slots?.[slotIndex];
+  if (!slot || slot.player) return [];
+
+  const { mine, others } = availability(state);
+  const fits =
+    slot.ruolo === 'P'
+      ? (p: Player) => p.ruolo === 'P'
+      : mode === 'classic'
+        ? (p: Player) => p.ruolo === slot.ruolo
+        : (p: Player) => fitsSlot(p, slot.slotKeys);
+
+  return allPlayers
+    .filter((p) => !mine.has(p.id) && !others.has(p.id) && fits(p))
+    .sort(
+      (a, b) =>
+        ratingOf(b, mode) - ratingOf(a, mode) || quoteOf(a, mode) - quoteOf(b, mode),
+    )
+    .slice(0, limit)
+    .map((player) => ({
+      player,
+      maxBid: maxBidFor(allPlayers, byId, state, player.id, mode) ?? 0,
+    }));
+}
+
 export interface Upgrade {
   player: Player;
   gain: number;

@@ -10,8 +10,10 @@ import {
   cheapestFill,
   findUpgrades,
   maxBidFor,
+  lineupSlots,
   modulesFor,
   roleTargets,
+  slotSuggestions,
 } from './engine';
 
 let seq = 1;
@@ -391,5 +393,92 @@ describe('valueDelta / valueRatio', () => {
     const p = mk({ ruolo: 'C', qtA: 0, fvm: 10 });
     expect(valueRatio(p, 'classic')).toBeNull();
     expect(valueDelta(p, 'classic')).toBe(10);
+  });
+});
+
+describe('lineupSlots', () => {
+  it('riempie gli slot classic col migliori per ruolo', () => {
+    const roster = [
+      mk({ ruolo: 'P', qtA: 10, fvm: 50 }),
+      mk({ ruolo: 'P', qtA: 5, fvm: 30 }),
+      mk({ ruolo: 'D', qtA: 10, fvm: 60 }),
+      mk({ ruolo: 'C', qtA: 10, fvm: 70 }),
+      mk({ ruolo: 'A', qtA: 10, fvm: 80 }),
+    ];
+    const slots = lineupSlots(roster, 'classic', '3-4-3')!;
+    expect(slots).toHaveLength(11);
+    expect(slots[0]).toMatchObject({ label: 'P', ruolo: 'P' });
+    expect(slots[0].player!.fvm).toBe(50);
+    // 3 D: solo uno in rosa → 1 pieno, 2 vuoti
+    const d = slots.filter((s) => s.ruolo === 'D');
+    expect(d.filter((s) => s.player)).toHaveLength(1);
+    expect(d.filter((s) => s.player === null)).toHaveLength(2);
+    // C e A: un solo giocatore ciascuno su slot multipli
+    expect(slots.filter((s) => s.ruolo === 'C' && s.player)).toHaveLength(1);
+    expect(slots.filter((s) => s.ruolo === 'A' && s.player)).toHaveLength(1);
+  });
+
+  it('in mantra assegna i polivalenti risolvendo i conflitti e lascia vuoti gli slot scoperti', () => {
+    const roster = [
+      mk({ ruolo: 'P', qtA: 10, fvm: 50, ruoloMantra: ['Por'] }),
+      // un solo E: deve andare nello slot E/M/C, non in E/W
+      mk({ ruolo: 'C', qtA: 10, fvm: 90, ruoloMantra: ['E', 'W'] }),
+      mk({ ruolo: 'C', qtA: 10, fvm: 60, ruoloMantra: ['M'] }),
+      mk({ ruolo: 'A', qtA: 10, fvm: 80, ruoloMantra: ['Pc'] }),
+    ];
+    const slots = lineupSlots(roster, 'mantra', '3-4-3')!;
+    expect(slots).toHaveLength(11);
+    const filled = slots.filter((s) => s.player);
+    expect(filled).toHaveLength(4);
+    // il 90 (E/W) deve occupare uno slot che ammette E: E/M/C o E/W, non Dc
+    const e90 = filled.find((s) => s.player!.fvm === 90)!;
+    expect(e90.label.split('/')).toContain('E');
+  });
+
+  it('ritorna null per moduli inesistenti', () => {
+    expect(lineupSlots([], 'classic', '9-9-9')).toBeNull();
+    expect(lineupSlots([], 'mantra', '9-9-9')).toBeNull();
+  });
+});
+
+describe('slotSuggestions', () => {
+  const roster = [
+    mk({ id: 1, ruolo: 'P', qtA: 10, fvm: 50, ruoloMantra: ['Por'] }),
+    mk({ id: 2, ruolo: 'C', qtA: 10, fvm: 90, ruoloMantra: ['E', 'W'] }),
+  ];
+
+  it('propone solo giocatori compatibili col ruolo e disponibili', () => {
+    const all = [
+      ...roster,
+      mk({ id: 10, ruolo: 'C', qtA: 12, fvm: 70, ruoloMantra: ['E'] }),
+      mk({ id: 11, ruolo: 'C', qtA: 8, fvm: 65, ruoloMantra: ['M'] }),
+      mk({ id: 12, ruolo: 'A', qtA: 15, fvm: 95, ruoloMantra: ['Pc'] }),
+      mk({ id: 13, ruolo: 'D', qtA: 9, fvm: 55, ruoloMantra: ['Dc'] }),
+    ];
+    const byId = buildIndex(all);
+    const s = stateOf(CFG, [[1, 10], [2, 12]], [11]);
+    // slot 7 del 3-4-3 = secondo slot "E" (il primo, indice 4, è coperto dall'E/W in rosa)
+    const sug = slotSuggestions(all, byId, s, 'mantra', '3-4-3', 7);
+    expect(sug.map((x) => x.player.id)).toEqual([10]);
+    expect(sug[0].maxBid).toBeGreaterThan(0);
+  });
+
+  it('non suggerisce nulla per slot già coperti', () => {
+    const all = [...roster, mk({ id: 10, ruolo: 'P', qtA: 12, fvm: 70, ruoloMantra: ['Por'] })];
+    const byId = buildIndex(all);
+    const s = stateOf(CFG, [[1, 10]]);
+    expect(slotSuggestions(all, byId, s, 'mantra', '3-4-3', 0)).toHaveLength(0);
+  });
+
+  it('in classic filtra per ruolo macro', () => {
+    const all = [
+      ...roster,
+      mk({ id: 20, ruolo: 'A', qtA: 30, fvm: 95 }),
+      mk({ id: 21, ruolo: 'C', qtA: 30, fvm: 95 }),
+    ];
+    const byId = buildIndex(all);
+    const s = stateOf(CFG, [[1, 10], [2, 12]]);
+    const sug = slotSuggestions(all, byId, s, 'classic', '3-4-3', 8);
+    expect(sug.map((x) => x.player.id)).toEqual([20]);
   });
 });

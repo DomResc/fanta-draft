@@ -143,7 +143,7 @@ function DraftScreen({
       <PlayerTable players={players} mode={mode} focus={focus} />
       <aside className="space-y-4">
         <BudgetCard players={players} />
-        <SquadCard players={players} mode={mode} />
+        <SquadCard players={players} mode={mode} onFocus={focusPlayer} />
         <Recommendations players={players} mode={mode} onFocus={focusPlayer} />
         <UpgradePanel players={players} mode={mode} onFocus={focusPlayer} />
       </aside>

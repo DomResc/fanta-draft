@@ -1,12 +1,36 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { Blocco, Mode, Player, Ruolo } from '../types';
-import { blocchiOf, quoteOf, ratingOf, valueDelta, valueRatio, weightedValueDelta } from '../types';
+import { blocchiOf, quoteOf, ratingOf, valueDelta, weightedValueDelta } from '../types';
 import { useDraft } from '../state/store';
 import { buildIndex, maxBidFor } from '../lib/engine';
 
-type SortKey = 'fvm' | 'qt' | 'delta' | 'deltaW' | 'ratio' | 'nome';
+type SortKey = 'fvm' | 'qt' | 'delta' | 'deltaW' | 'mv' | 'fm' | 'nome';
 type StatusFilter = 'available' | 'all';
 type BloccoFilter = 'tutti' | Blocco;
+type ColId = 'giocatore' | 'rm' | 'pres' | 'mv' | 'fm' | 'qt' | 'fvm';
+
+const DEFAULT_COL_W: Record<ColId, number> = {
+  giocatore: 260,
+  rm: 72,
+  pres: 52,
+  mv: 56,
+  fm: 56,
+  qt: 64,
+  fvm: 64,
+};
+
+const COLS_KEY = 'fanta-draft:cols';
+
+function loadColWidths(): Record<ColId, number> {
+  try {
+    const raw = localStorage.getItem(COLS_KEY);
+    if (raw) return { ...DEFAULT_COL_W, ...JSON.parse(raw) };
+  } catch {
+    // ignora
+  }
+  return { ...DEFAULT_COL_W };
+}
 
 export default function PlayerTable({
   players,
@@ -28,6 +52,54 @@ export default function PlayerTable({
   const [status, setStatus] = useState<StatusFilter>('available');
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [priceInput, setPriceInput] = useState('');
+  const [colW, setColW] = useState<Record<ColId, number>>(loadColWidths);
+  const [resizing, setResizing] = useState<{
+    id: ColId;
+    startX: number;
+    startW: number;
+  } | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLS_KEY, JSON.stringify(colW));
+    } catch {
+      // ignora
+    }
+  }, [colW]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const move = (e: MouseEvent) => {
+      const dx = e.clientX - resizing.startX;
+      setColW((w) => ({
+        ...w,
+        [resizing.id]: Math.max(40, resizing.startW + dx),
+      }));
+    };
+    const up = () => setResizing(null);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+  }, [resizing]);
+
+  const startResize = (id: ColId) => (e: ReactMouseEvent) => {
+    e.preventDefault();
+    setResizing({ id, startX: e.clientX, startW: colW[id] });
+  };
+
+  const resizeHandle = (id: ColId) => (
+    <span
+      onMouseDown={startResize(id)}
+      onDoubleClick={() => setColW((w) => ({ ...w, [id]: DEFAULT_COL_W[id] }))}
+      title="Trascina per ridimensionare · doppio click per reimpostare"
+      className={`absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-emerald-500/60 ${
+        resizing?.id === id ? 'bg-emerald-500' : ''
+      }`}
+    />
+  );
 
   const byId = useMemo(() => buildIndex(players), [players]);
 
@@ -83,8 +155,10 @@ export default function PlayerTable({
           return valueDelta(b, mode) - valueDelta(a, mode);
         case 'deltaW':
           return weightedValueDelta(b, mode) - weightedValueDelta(a, mode);
-        case 'ratio':
-          return (valueRatio(b, mode) ?? -Infinity) - (valueRatio(a, mode) ?? -Infinity);
+        case 'mv':
+          return (b.mv ?? -Infinity) - (a.mv ?? -Infinity);
+        case 'fm':
+          return (b.fm ?? -Infinity) - (a.fm ?? -Infinity);
         case 'nome':
           return a.nome.localeCompare(b.nome);
         default:
@@ -215,7 +289,8 @@ export default function PlayerTable({
           <option value="deltaW" title="Δ pesato per la titolarità attesa: richiede le statistiche importate">
             Ordina: Δ pesato ↓
           </option>
-          <option value="ratio">Ordina: V/Q ↓</option>
+          <option value="mv" title="Richiede le statistiche importate">Ordina: MV scorsa stag. ↓</option>
+          <option value="fm" title="Richiede le statistiche importate">Ordina: FM scorsa stag. ↓</option>
           <option value="nome">Ordina: Nome ↑</option>
         </select>
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-zinc-400">
@@ -233,25 +308,61 @@ export default function PlayerTable({
       </div>
 
       <div className="max-h-[calc(100vh-220px)] overflow-auto">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[720px] table-fixed text-sm">
           <thead className="sticky top-0 z-10 bg-zinc-900 text-left text-xs uppercase tracking-wide text-zinc-500">
             <tr>
-              <th className="px-3 py-2 font-medium">Giocatore</th>
-              {mode === 'mantra' && <th className="px-2 py-2 font-medium">RM</th>}
               <th
-                className="px-2 py-2 text-right font-medium"
+                className="relative px-3 py-2 font-medium"
+                style={{ width: colW.giocatore }}
+              >
+                Giocatore
+                {resizeHandle('giocatore')}
+              </th>
+              {mode === 'mantra' && (
+                <th className="relative px-2 py-2 font-medium" style={{ width: colW.rm }}>
+                  RM
+                  {resizeHandle('rm')}
+                </th>
+              )}
+              <th
+                className="relative px-2 py-2 text-right font-medium"
+                style={{ width: colW.pres }}
                 title="Presenze scorsa stagione (richiede il file statistiche): proxy di titolarità"
               >
                 Pres
-              </th>
-              <th className="px-2 py-2 text-right font-medium" title="Quotazione attuale (prezzo d'asta)">
-                Qt.A
+                {resizeHandle('pres')}
               </th>
               <th
-                className="px-3 py-2 text-right font-medium"
-                title="FVM ÷ quotazione: efficienza al credito, >1 = potenziale affare"
+                className="relative px-2 py-2 text-right font-medium"
+                style={{ width: colW.mv }}
+                title="Media voto scorsa stagione (richiede il file statistiche)"
               >
-                V/Q
+                MV
+                {resizeHandle('mv')}
+              </th>
+              <th
+                className="relative px-2 py-2 text-right font-medium"
+                style={{ width: colW.fm }}
+                title="FantaMedia scorsa stagione (richiede il file statistiche)"
+              >
+                FM
+                {resizeHandle('fm')}
+              </th>
+              <th
+                className="relative px-2 py-2 text-right font-medium"
+                style={{ width: colW.qt }}
+                title="Quotazione attuale (prezzo d'asta)"
+              >
+                Qt.A
+                {resizeHandle('qt')}
+              </th>
+              <th
+                className="relative px-3 py-2 text-right font-medium"
+                style={{ width: colW.fvm }}
+                title="Fantavalue media (Classic) o Mantra: quanto il giocatore è atteso che renda"
+              >
+                FVM
+                {resizeHandle('fvm')}
               </th>
             </tr>
           </thead>
@@ -316,27 +427,22 @@ export default function PlayerTable({
                   >
                     {p.presenze ?? '—'}
                   </td>
+                  <td className="px-2 py-1.5 text-right text-xs tabular-nums text-zinc-300">
+                    {p.mv != null ? p.mv.toFixed(2) : '—'}
+                  </td>
+                  <td
+                    className={`px-2 py-1.5 text-right text-xs tabular-nums ${
+                      p.fm != null ? (p.fm >= 7 ? 'font-semibold text-emerald-400' : 'text-zinc-300') : 'text-zinc-600'
+                    }`}
+                  >
+                    {p.fm != null ? p.fm.toFixed(2) : '—'}
+                  </td>
                   <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
                     {quoteOf(p, mode)}
                   </td>
-                  {(() => {
-                    const ratio = valueRatio(p, mode);
-                    return (
-                      <td
-                        className={`px-3 py-1.5 text-right tabular-nums ${
-                          ratio == null
-                            ? 'text-zinc-600'
-                            : ratio >= 1.3
-                              ? 'font-bold text-emerald-400'
-                              : ratio >= 1
-                                ? 'text-zinc-300'
-                                : 'text-zinc-500'
-                        }`}
-                      >
-                        {ratio == null ? '—' : ratio.toFixed(2)}
-                      </td>
-                    );
-                  })()}
+                  <td className="px-3 py-1.5 text-right tabular-nums text-zinc-300">
+                    {ratingOf(p, mode)}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-1.5 text-right">
                     {st === 'available' && buyingId !== p.id && (
                       <>
@@ -412,7 +518,7 @@ export default function PlayerTable({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={mode === 'mantra' ? 6 : 5} className="p-6 text-center text-zinc-500">
+                <td colSpan={mode === 'mantra' ? 8 : 7} className="p-6 text-center text-zinc-500">
                   Nessun giocatore trovato con questi filtri.
                 </td>
               </tr>
