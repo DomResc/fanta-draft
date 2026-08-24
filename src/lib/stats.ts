@@ -10,7 +10,18 @@ import type { Player } from '../types';
  */
 
 export type StatsPatch = Partial<
-  Pick<Player, 'presenze' | 'mv' | 'fm' | 'gol' | 'assist' | 'rigori'>
+  Pick<
+    Player,
+    | 'presenze'
+    | 'mv'
+    | 'fm'
+    | 'gol'
+    | 'golSubiti'
+    | 'rigoriParati'
+    | 'rigoriSegnati'
+    | 'rigoriFalliti'
+    | 'assist'
+  >
 >;
 
 export interface StatsRow {
@@ -24,12 +35,15 @@ const FIELD_ALIASES: Record<string, string[]> = {
   id: ['id', 'cod'],
   nome: ['nome', 'giocatore', 'calciatore'],
   squadra: ['squadra', 'team'],
-  presenze: ['pres', 'presenze'],
+  presenze: ['pv', 'pres', 'presenze', 'pg', 'partitegiocate'],
   mv: ['mv', 'mediavoto'],
   fm: ['fm', 'fantamedia'],
   gol: ['gol', 'gf', 'golfatti'],
+  golSubiti: ['gs', 'golsubiti'],
+  rigoriParati: ['rp', 'rigoriparati'],
+  rigoriSegnati: ['r+', 'rigorisegnati'],
+  rigoriFalliti: ['r-', 'rigorifalliti'],
   assist: ['ass', 'assist', 'assisti'],
-  rigori: ['rig', 'rigori', 'rigorisegnati'],
 };
 
 const STAT_FIELDS = [
@@ -37,8 +51,11 @@ const STAT_FIELDS = [
   'mv',
   'fm',
   'gol',
+  'golSubiti',
+  'rigoriParati',
+  'rigoriSegnati',
+  'rigoriFalliti',
   'assist',
-  'rigori',
 ] as const;
 
 function normalizeHeader(h: unknown): string {
@@ -109,12 +126,10 @@ export function parseStatistiche(buf: ArrayBuffer): StatsRow[] {
     const nome = String(r[cols.nome] ?? '').trim();
     if (!nome) continue;
     const patch: StatsPatch = {};
-    if (cols.presenze != null) patch.presenze = num(r[cols.presenze]);
-    if (cols.mv != null) patch.mv = num(r[cols.mv]);
-    if (cols.fm != null) patch.fm = num(r[cols.fm]);
-    if (cols.gol != null) patch.gol = num(r[cols.gol]);
-    if (cols.assist != null) patch.assist = num(r[cols.assist]);
-    if (cols.rigori != null) patch.rigori = num(r[cols.rigori]);
+    for (const f of STAT_FIELDS) {
+      const idx = cols[f];
+      if (idx != null) patch[f] = num(r[idx]);
+    }
     rows.push({
       id: cols.id != null && num(r[cols.id]) > 0 ? num(r[cols.id]) : null,
       nome,

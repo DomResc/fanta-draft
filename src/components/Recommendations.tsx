@@ -4,6 +4,13 @@ import { quoteOf, valueDelta } from '../types';
 import { useDraft } from '../state/store';
 import { budgetStatus, buildIndex, roleTargets } from '../lib/engine';
 
+const ROLE_TEXT_CLASS: Record<Ruolo, string> = {
+  P: 'text-amber-400',
+  D: 'text-sky-400',
+  C: 'text-emerald-400',
+  A: 'text-violet-300',
+};
+
 export default function Recommendations({
   players,
   mode,
@@ -51,7 +58,7 @@ export default function Recommendations({
         {[...targets.entries()].map(([ruolo, list]) => (
           <div key={ruolo}>
             <div className="flex items-baseline justify-between">
-              <h4 className="font-semibold text-sky-400">{ruolo}</h4>
+              <h4 className={`font-semibold ${ROLE_TEXT_CLASS[ruolo]}`}>{ruolo}</h4>
               <span className="text-xs text-zinc-500">
                 {status.byRole[ruolo]} in rosa
               </span>

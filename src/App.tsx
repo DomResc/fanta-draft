@@ -143,9 +143,9 @@ function DraftScreen({
       <PlayerTable players={players} mode={mode} focus={focus} />
       <aside className="space-y-4">
         <BudgetCard players={players} />
+        <SquadCard players={players} mode={mode} />
         <Recommendations players={players} mode={mode} onFocus={focusPlayer} />
         <UpgradePanel players={players} mode={mode} onFocus={focusPlayer} />
-        <SquadCard players={players} mode={mode} />
       </aside>
       <FocusClearer onDone={clearFocus} dep={focus?.id ?? null} />
     </main>

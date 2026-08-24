@@ -28,8 +28,11 @@ export interface Player {
   mv?: number;
   fm?: number;
   gol?: number;
+  golSubiti?: number;
+  rigoriParati?: number;
+  rigoriSegnati?: number;
+  rigoriFalliti?: number;
   assist?: number;
-  rigori?: number;
 }
 
 export interface LeagueConfig {

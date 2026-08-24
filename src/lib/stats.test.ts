@@ -13,91 +13,113 @@ function buildWorkbook(
   return XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
 }
 
-/** Colonne realistiche della pagina statistiche di fantacalcio.it:
- *  include anche le quotazioni (colonne extra da ignorare). */
+/** Colonne reali del file "Statistiche" di fantacalcio.it (es. 2025/26):
+ *  Id, R, Rm, Nome, Squadra, Pv, Mv, Fm, Gf, Gs, Rp, Rc, R+, R-, Ass, Amm, Esp, Au. */
 const HEADER = [
+  'Id',
   'R',
+  'Rm',
   'Nome',
   'Squadra',
-  'Qt.A',
-  'Qt.I',
+  'Pv',
   'Mv',
   'Fm',
-  'Pres',
-  'Gol',
+  'Gf',
+  'Gs',
+  'Rp',
+  'Rc',
+  'R+',
+  'R-',
   'Ass',
-  'Rig',
+  'Amm',
+  'Esp',
+  'Au',
 ];
 
 function statRows(): (string | number)[][] {
   return [
-    ['Statistiche Fantacalcio Serie A 2025/26'],
+    ['Statistiche Fantacalcio Stagione 2025 26'],
     HEADER,
-    ['P', 'Svilar', 'Roma', '18', '18', '7,12', '7,3', '35', '0', '0', '0'],
-    ['D', 'Rossi', 'Milan', '10', '12', '6,15', '6,2', '22', '2', '1', '0'],
-    ['C', 'Bianchi', 'Juventus', '7', '7', '6,01', '6,8', '28', '4', '5', '3'],
-    ['A', 'Neri', 'Napoli', '22', '20', '6,45', '7,1', '30', '18', '4', '6'],
+    // Carnesecchi (P): 37 presenze, 35 gol subiti, 2 rigori parati
+    [4431, 'P', 'Por', 'Carnesecchi', 'Atalanta', 37, 6.36, 5.58, 0, 35, 2, 0, 0, 0, 0, 0, 0, 0],
+    // Martinez L. (A): 30 presenze, 17 gol, 6 assist
+    [2764, 'A', 'Pc', 'Martinez L.', 'Inter', 30, 6.42, 8.25, 17, 0, 0, 0, 0, 0, 6, 4, 0, 0],
   ];
 }
 
 const players: Player[] = [
   {
-    id: 5841,
-    nome: 'Svilar',
-    squadra: 'Roma',
+    id: 4431,
+    nome: 'Carnesecchi',
+    squadra: 'Atalanta',
     ruolo: 'P',
     ruoloMantra: ['Por'],
-    qtA: 18,
-    qtI: 18,
+    qtA: 16,
+    qtI: 16,
     diff: 0,
-    qtAM: 18,
-    fvm: 65,
-    fvmM: 65,
+    qtAM: 16,
+    fvm: 60,
+    fvmM: 60,
   },
   {
-    id: 1,
-    nome: 'Rossi',
-    squadra: 'Milan',
-    ruolo: 'D',
-    ruoloMantra: ['Dd'],
-    qtA: 10,
-    qtI: 12,
-    diff: -2,
-    qtAM: 9,
-    fvm: 50,
-    fvmM: 48,
+    id: 2764,
+    nome: 'Martinez L.',
+    squadra: 'Inter',
+    ruolo: 'A',
+    ruoloMantra: ['Pc'],
+    qtA: 35,
+    qtI: 35,
+    diff: 0,
+    qtAM: 35,
+    fvm: 370,
+    fvmM: 370,
   },
 ];
 
 describe('parseStatistiche', () => {
-  it('riconosce intestazioni per alias e ignora colonne extra', () => {
+  it('riconosce le colonne reali del file fantacalcio.it (Pv, Gf, Gs, Rp, R+, R-…)', () => {
     const rows = parseStatistiche(buildWorkbook(statRows()));
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
-      id: null,
-      nome: 'Svilar',
-      squadra: 'Roma',
-      patch: { presenze: 35, mv: 7.12, fm: 7.3, gol: 0, assist: 0, rigori: 0 },
+      id: 4431,
+      nome: 'Carnesecchi',
+      squadra: 'Atalanta',
+      patch: {
+        presenze: 37,
+        mv: 6.36,
+        fm: 5.58,
+        golSubiti: 35,
+        rigoriParati: 2,
+      },
     });
-    expect(rows[2].patch).toMatchObject({ gol: 4, assist: 5, rigori: 3 });
+    expect(rows[1].patch).toMatchObject({
+      presenze: 30,
+      gol: 17,
+      assist: 6,
+      golSubiti: 0,
+    });
   });
 
-  it('legge la colonna Id quando presente e accetta fogli con nome qualsiasi', () => {
-    const buf = buildWorkbook([
-      ['Id', ...HEADER],
-      [5841, 'P', 'Svilar', 'Roma', '18', '18', '7,12', '7,3', '35', '0', '0', '0'],
-    ]);
-    const parsed = parseStatistiche(buf);
-    expect(parsed[0].id).toBe(5841);
-    expect(parsed[0].patch.presenze).toBe(35);
+  it('accetta fogli con nome qualsiasi e alias alternativi (Pres, Media Voto…)', () => {
+    const buf = buildWorkbook(
+      [
+        ['Nome', 'Squadra', 'Pres', 'Media Voto', 'FantaMedia', 'Gol', 'Assist'],
+        ['Rossi', 'Milan', '22', '6,15', '6,2', '2', '1'],
+      ],
+      'Tutti',
+    );
+    const rows = parseStatistiche(buf);
+    expect(rows[0].patch).toMatchObject({
+      presenze: 22,
+      mv: 6.15,
+      fm: 6.2,
+      gol: 2,
+      assist: 1,
+    });
   });
 
   it('salta le righe senza nome', () => {
-    const rows = [
-      HEADER,
-      ['', '', '', '', '', '', '', '', '', '', ''],
-      ['A', 'Neri', 'Napoli', '22', '20', '6,45', '7,1', '30', '18', '4', '6'],
-    ];
+    const rows = [HEADER, ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''], statRows()[2]];
     expect(parseStatistiche(buildWorkbook(rows))).toHaveLength(1);
   });
 
@@ -109,32 +131,28 @@ describe('parseStatistiche', () => {
 
 describe('applyStats', () => {
   it('fonde per Id e conta i giocatori arricchiti', () => {
-    const parsed = parseStatistiche(buildWorkbook([
-      ['Id', ...HEADER],
-      [5841, 'P', 'Svilar', 'Roma', '18', '18', '7,12', '7,3', '35', '0', '0', '0'],
-      [999, 'D', 'Inesistente', 'Test', '5', '5', '6', '6', '10', '0', '0', '0'],
-    ]));
+    const parsed = parseStatistiche(buildWorkbook(statRows()));
     const res = applyStats(players, parsed);
-    expect(res.matched).toBe(1);
-    expect(res.players[0].presenze).toBe(35);
-    expect(res.players[0].mv).toBeCloseTo(7.12);
-    expect(res.players[1].mv).toBeUndefined();
+    expect(res.matched).toBe(2);
+    expect(res.players[0].presenze).toBe(37);
+    expect(res.players[0].golSubiti).toBe(35);
+    expect(res.players[1].gol).toBe(17);
   });
 
   it('usa il fallback nome+squadra quando l\u2019Id non corrisponde', () => {
     const parsed = parseStatistiche(buildWorkbook([
       HEADER,
-      ['D', 'Rossi', 'Milan', '10', '12', '6,15', '6,2', '22', '2', '1', '0'],
+      [-1, 'A', 'Pc', 'Martinez L.', 'Inter', 30, 6.42, 8.25, 17, 0, 0, 0, 0, 0, 6, 4, 0, 0],
     ]));
     const res = applyStats(players, parsed);
     expect(res.matched).toBe(1);
-    expect(res.players[1]).toMatchObject({ presenze: 22, mv: 6.15 });
+    expect(res.players[1]).toMatchObject({ presenze: 30, mv: 6.42 });
   });
 
   it('non modifica nulla se nessuna riga corrisponde', () => {
     const parsed = parseStatistiche(buildWorkbook([
       HEADER,
-      ['A', 'Neri', 'Napoli', '22', '20', '6,45', '7,1', '30', '18', '4', '6'],
+      [1, 'C', 'C', 'Sconosciuto', 'Test', 10, 6, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ]));
     const res = applyStats(players, parsed);
     expect(res.matched).toBe(0);

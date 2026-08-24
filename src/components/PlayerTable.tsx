@@ -133,9 +133,16 @@ export default function PlayerTable({
     const parts: string[] = [];
     if (p.mv != null) parts.push(`MV ${p.mv}`);
     if (p.fm != null) parts.push(`FM ${p.fm}`);
-    if (p.gol != null) parts.push(`${p.gol} gol`);
-    if (p.assist != null) parts.push(`${p.assist} assist`);
-    if (p.rigori != null) parts.push(`${p.rigori} rigori`);
+    if (p.ruolo === 'P') {
+      if (p.golSubiti != null) parts.push(`${p.golSubiti} gol subiti`);
+      if (p.rigoriParati) parts.push(`${p.rigoriParati} rigori parati`);
+    } else {
+      if (p.gol != null) parts.push(`${p.gol} gol`);
+      if (p.assist != null) parts.push(`${p.assist} assist`);
+      if (p.rigoriSegnati || p.rigoriFalliti) {
+        parts.push(`${(p.rigoriSegnati ?? 0) + (p.rigoriFalliti ?? 0)} rigori (${p.rigoriSegnati ?? 0}/${p.rigoriFalliti ?? 0} sbagliati)`);
+      }
+    }
     return parts.length > 0
       ? `Scorsa stagione: ${parts.join(' · ')}`
       : 'Importa il file statistiche dall\u2019header per presenze e media voto';
@@ -240,15 +247,6 @@ export default function PlayerTable({
               <th className="px-2 py-2 text-right font-medium" title="Quotazione attuale (prezzo d'asta)">
                 Qt.A
               </th>
-              <th className="px-2 py-2 text-right font-medium" title="Fantavalue media (Classic) o Mantra">
-                FVM
-              </th>
-              <th
-                className="px-2 py-2 text-right font-medium"
-                title="FVM − quotazione: quanto vale in più (o meno) di quanto costa"
-              >
-                Δ
-              </th>
               <th
                 className="px-3 py-2 text-right font-medium"
                 title="FVM ÷ quotazione: efficienza al credito, >1 = potenziale affare"
@@ -321,36 +319,22 @@ export default function PlayerTable({
                   <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
                     {quoteOf(p, mode)}
                   </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums text-zinc-300">
-                    {ratingOf(p, mode)}
-                  </td>
                   {(() => {
-                    const delta = valueDelta(p, mode);
                     const ratio = valueRatio(p, mode);
                     return (
-                      <>
-                        <td
-                          className={`px-2 py-1.5 text-right tabular-nums ${
-                            delta > 0 ? 'text-emerald-500' : delta < 0 ? 'text-red-500' : 'text-zinc-500'
-                          }`}
-                        >
-                          {delta > 0 ? '+' : ''}
-                          {delta}
-                        </td>
-                        <td
-                          className={`px-3 py-1.5 text-right tabular-nums ${
-                            ratio == null
-                              ? 'text-zinc-600'
-                              : ratio >= 1.3
-                                ? 'font-bold text-emerald-400'
-                                : ratio >= 1
-                                  ? 'text-zinc-300'
-                                  : 'text-zinc-500'
-                          }`}
-                        >
-                          {ratio == null ? '—' : ratio.toFixed(2)}
-                        </td>
-                      </>
+                      <td
+                        className={`px-3 py-1.5 text-right tabular-nums ${
+                          ratio == null
+                            ? 'text-zinc-600'
+                            : ratio >= 1.3
+                              ? 'font-bold text-emerald-400'
+                              : ratio >= 1
+                                ? 'text-zinc-300'
+                                : 'text-zinc-500'
+                        }`}
+                      >
+                        {ratio == null ? '—' : ratio.toFixed(2)}
+                      </td>
                     );
                   })()}
                   <td className="whitespace-nowrap px-3 py-1.5 text-right">
@@ -428,7 +412,7 @@ export default function PlayerTable({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={mode === 'mantra' ? 8 : 7} className="p-6 text-center text-zinc-500">
+                <td colSpan={mode === 'mantra' ? 6 : 5} className="p-6 text-center text-zinc-500">
                   Nessun giocatore trovato con questi filtri.
                 </td>
               </tr>
